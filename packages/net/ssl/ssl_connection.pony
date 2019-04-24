@@ -1,5 +1,6 @@
 use "collections"
 use "net"
+use "debug"
 
 class SSLConnection is TCPConnectionNotify
   """
@@ -23,24 +24,28 @@ class SSLConnection is TCPConnectionNotify
     """
     Forward to the wrapped protocol.
     """
+    Debug.out("* SSLCON  accepted")
     _notify.accepted(conn)
 
   fun ref connecting(conn: TCPConnection ref, count: U32) =>
     """
     Forward to the wrapped protocol.
     """
+    Debug.out("* SSLCON  connectiong")
     _notify.connecting(conn, count)
 
   fun ref connected(conn: TCPConnection ref) =>
     """
     Swallow this event until the handshake is complete.
     """
+    Debug.out("* SSLCON  connected")
     _poll(conn)
 
   fun ref connect_failed(conn: TCPConnection ref) =>
     """
     Forward to the wrapped protocol.
     """
+    Debug.out("* SSLCON  connect_failed")
     _notify.connect_failed(conn)
 
   fun ref sent(conn: TCPConnection ref, data: ByteSeq): ByteSeq =>
@@ -48,6 +53,11 @@ class SSLConnection is TCPConnectionNotify
     Pass the data to the SSL session and check for both new application data
     and new destination data.
     """
+    Debug.out("* SSLCON  sent")
+    match data
+    | let x: String val => Debug.out(x)
+    | let x: Array[U8 val] val => Debug.out(String.from_array(x))
+    end
     let notified = _notify.sent(conn, data)
     if _connected then
       try
@@ -63,6 +73,7 @@ class SSLConnection is TCPConnectionNotify
     ""
 
   fun ref sentv(conn: TCPConnection ref, data: ByteSeqIter): ByteSeqIter =>
+    Debug.out("* SSLCON  sentv")
     for bytes in data.values() do
       sent(conn, bytes)
     end
@@ -79,6 +90,7 @@ class SSLConnection is TCPConnectionNotify
     Pass the data to the SSL session and check for both new application data
     and new destination data.
     """
+    Debug.out("* SSLCON  received")
     _ssl.receive(consume data)
     _poll(conn)
     true
@@ -88,6 +100,7 @@ class SSLConnection is TCPConnectionNotify
     Keep track of the expect count for the wrapped protocol. Always tell the
     TCPConnection to read all available data.
     """
+    Debug.out("* SSLCON  expect")
     _expect = _notify.expect(conn, qty)
     0
 
@@ -95,6 +108,7 @@ class SSLConnection is TCPConnectionNotify
     """
     Forward to the wrapped protocol.
     """
+    Debug.out("* SSLCON  closed")
     _closed = true
 
     _poll(conn)
@@ -109,8 +123,10 @@ class SSLConnection is TCPConnectionNotify
     Checks for both new application data and new destination data. Informs the
     wrapped protocol that is has connected when the handshake is complete.
     """
+    Debug.out("* SSLCON  _poll")
     match _ssl.state()
     | SSLReady =>
+      Debug.out("*         Ready")
       if not _connected then
         _connected = true
         _notify.connected(conn)
@@ -127,6 +143,7 @@ class SSLConnection is TCPConnectionNotify
         end
       end
     | SSLAuthFail =>
+      Debug.out("*         AuthFail")
       _notify.auth_failed(conn)
 
       if not _closed then
@@ -135,6 +152,7 @@ class SSLConnection is TCPConnectionNotify
 
       return
     | SSLError =>
+      Debug.out("*         SSLError")
       if not _closed then
         conn.close()
       end
@@ -157,10 +175,14 @@ class SSLConnection is TCPConnectionNotify
           break
         end
       end
+    else
+      Debug.out("*         _poll read")
     end
 
     try
       while _ssl.can_send() do
         conn.write_final(_ssl.send()?)
       end
+    else
+      Debug.out("*         _poll can_send")
     end
