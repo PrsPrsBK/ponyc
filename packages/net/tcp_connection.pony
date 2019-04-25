@@ -479,8 +479,8 @@ actor TCPConnection
     """
     Handle socket events.
     """
-    Debug.out("* TCPCON _event_notify()")
     if event isnt _event then
+      Debug.out("* TCPCON _event_notify() isnt _event ---------------------------")
       if AsioEvent.writeable(flags) then
         // A connection has completed.
         var fd = @pony_asio_event_fd(event)
@@ -535,6 +535,7 @@ actor TCPConnection
         end
       end
     else
+      Debug.out("* TCPCON _event_notify() _event ------------------")
       // At this point, it's our event.
       if AsioEvent.writeable(flags) then
         _writeable = true
