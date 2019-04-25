@@ -535,7 +535,7 @@ actor TCPConnection
         end
       end
     else
-      Debug.out("* TCPCON _event_notify() _event ------------------" + flags.string())
+      Debug.out("* TCPCON _event_notify() _event ------------------" + event.usize().string() + "----" + flags.string() + "----" + arg.string())
       // At this point, it's our event.
       if AsioEvent.writeable(flags) then
         _writeable = true
