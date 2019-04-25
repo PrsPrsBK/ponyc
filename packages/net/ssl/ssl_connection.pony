@@ -53,19 +53,23 @@ class SSLConnection is TCPConnectionNotify
     Pass the data to the SSL session and check for both new application data
     and new destination data.
     """
-    Debug.out("* SSLCON  sent")
-    match data
-    | let x: String val => Debug.out(x)
-    | let x: Array[U8 val] val => Debug.out(String.from_array(x))
-    end
+    Debug.out("* SSLCON  sent<" + 
+      match data
+      | let x: String val => x
+      | let x: Array[U8 val] val => String.from_array(x)
+      end
+      + ">"
+    )
     let notified = _notify.sent(conn, data)
     if _connected then
       try
         _ssl.write(notified)?
       else
+        Debug.out("* SSLCON  sent _connected true write ERROR")
         return ""
       end
     else
+      Debug.out("* SSLCON  sent _connected false")
       _pending.push(notified)
     end
 
@@ -90,7 +94,7 @@ class SSLConnection is TCPConnectionNotify
     Pass the data to the SSL session and check for both new application data
     and new destination data.
     """
-    Debug.out("* SSLCON  received")
+    Debug.out("* SSLCON  received <<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     _ssl.receive(consume data)
     _poll(conn)
     true
@@ -108,7 +112,7 @@ class SSLConnection is TCPConnectionNotify
     """
     Forward to the wrapped protocol.
     """
-    Debug.out("* SSLCON  closed")
+    Debug.out("* SSLCON  closed  *************************************")
     _closed = true
 
     _poll(conn)

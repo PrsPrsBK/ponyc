@@ -1,4 +1,5 @@
 use "collections"
+use "debug"
 
 use @pony_asio_event_create[AsioEventID](owner: AsioEventNotify, fd: U32,
   flags: U32, nsec: U64, noisy: Bool)
@@ -235,6 +236,7 @@ actor TCPConnection
     Connect via IPv4 or IPv6. If `from` is a non-empty string, the connection
     will be made from the specified interface.
     """
+    Debug.out("* TCPCON new create()")
     _read_buf = recover Array[U8] .> undefined(init_size) end
     _next_size = init_size
     _max_size = max_size
@@ -256,6 +258,7 @@ actor TCPConnection
     """
     Connect via IPv4.
     """
+    Debug.out("* TCPCON new ip4()")
     _read_buf = recover Array[U8] .> undefined(init_size) end
     _next_size = init_size
     _max_size = max_size
@@ -277,6 +280,7 @@ actor TCPConnection
     """
     Connect via IPv6.
     """
+    Debug.out("* TCPCON new ip6()")
     _read_buf = recover Array[U8] .> undefined(init_size) end
     _next_size = init_size
     _max_size = max_size
@@ -296,6 +300,7 @@ actor TCPConnection
     """
     A new connection accepted on a server.
     """
+    Debug.out("* TCPCON new accept()")
     _listen = listen
     _notify = consume notify
     _connect_count = 0
@@ -327,6 +332,7 @@ actor TCPConnection
     Write a single sequence of bytes. Data will be silently discarded if the
     connection has not yet been established though.
     """
+    Debug.out("* TCPCON write()")
     if _connected and not _closed then
       _in_sent = true
       write_final(_notify.sent(this, data))
@@ -338,6 +344,7 @@ actor TCPConnection
     Write a sequence of sequences of bytes. Data will be silently discarded if
     the connection has not yet been established though.
     """
+    Debug.out("* TCPCON writev()")
     if _connected and not _closed then
       _in_sent = true
 
@@ -389,12 +396,14 @@ actor TCPConnection
     Temporarily suspend reading off this TCPConnection until such time as
     `unmute` is called.
     """
+    Debug.out("* TCPCON mute()")
     _muted = true
 
   be unmute() =>
     """
     Start reading off this TCPConnection again after having been muted.
     """
+    Debug.out("* TCPCON unmute()")
     _muted = false
     _pending_reads()
 
@@ -402,12 +411,14 @@ actor TCPConnection
     """
     Change the notifier.
     """
+    Debug.out("* TCPCON set_notify()")
     _notify = consume notify
 
   be dispose() =>
     """
     Close the connection gracefully once all writes are sent.
     """
+    Debug.out("* TCPCON dispose()")
     close()
 
   fun local_address(): NetAddress =>
@@ -415,6 +426,7 @@ actor TCPConnection
     Return the local IP address. If this TCPConnection is closed then the
     address returned is invalid.
     """
+    Debug.out("* TCPCON local_address()")
     let ip = recover NetAddress end
     @pony_os_sockname[Bool](_fd, ip)
     ip
@@ -424,6 +436,7 @@ actor TCPConnection
     Return the remote IP address. If this TCPConnection is closed then the
     address returned is invalid.
     """
+    Debug.out("* TCPCON remote_address()")
     let ip = recover NetAddress end
     @pony_os_peername[Bool](_fd, ip)
     ip
@@ -434,6 +447,7 @@ actor TCPConnection
     `qty` is zero, the call can contain any amount of data. This has no effect
     if called in the `sent` notifier callback.
     """
+    Debug.out("* TCPCON expect()")
     if not _in_sent then
       _expect = _notify.expect(this, qty)
       _read_buf_size()
@@ -444,6 +458,7 @@ actor TCPConnection
     Turn Nagle on/off. Defaults to on. This can only be set on a connected
     socket.
     """
+    Debug.out("* TCPCON set_nodelay()")
     if _connected then
       set_tcp_nodelay(state)
     end
@@ -455,6 +470,7 @@ actor TCPConnection
     keepalive is disabled by default. This can only be set on a connected
     socket.
     """
+    Debug.out("* TCPCON set_keepalive()")
     if _connected then
       @pony_os_keepalive[None](_fd, secs)
     end
@@ -463,6 +479,7 @@ actor TCPConnection
     """
     Handle socket events.
     """
+    Debug.out("* TCPCON _event_notify()")
     if event isnt _event then
       if AsioEvent.writeable(flags) then
         // A connection has completed.
@@ -548,6 +565,7 @@ actor TCPConnection
     """
     Resume reading.
     """
+    Debug.out("* TCPCON _read_again()")
     _pending_reads()
 
   fun ref write_final(data: ByteSeq) =>
@@ -557,6 +575,7 @@ actor TCPConnection
     that has already been transformed by the notifier. Data will be silently
     discarded if the connection has not yet been established though.
     """
+    Debug.out("* TCPCON write_final()")
     if _connected and not _closed then
       ifdef windows then
         try
@@ -590,8 +609,10 @@ actor TCPConnection
     The OS has informed us that `len` bytes of pending writes have completed.
     This occurs only with IOCP on Windows.
     """
+    Debug.out("* TCPCON _complete_writes()")
     ifdef windows then
       if len == 0 then
+        Debug.out("*        _complete_writes() len == 0")
         // IOCP reported a failed write on this chunk. Non-graceful shutdown.
         _hard_close()
         return
@@ -616,6 +637,7 @@ actor TCPConnection
     writeable. On an error, dispose of the connection. Returns whether
     it sent all pending data or not.
     """
+    Debug.out("* TCPCON _pending_writes()")
     ifdef not windows then
       // TODO: Make writev_batch_size user configurable
       let writev_batch_size: USize = @pony_os_writev_max[I32]().usize()
@@ -663,6 +685,7 @@ actor TCPConnection
     Manage pending buffer for data sent. Returns a boolean of whether
     the pending buffer is empty or not.
     """
+    Debug.out("* TCPCON _manage_pending_buffer()")
     var len = bytes_sent
     if len < bytes_to_send then
       while len > 0 do
@@ -731,6 +754,7 @@ actor TCPConnection
     The OS has informed us that `len` bytes of pending reads have completed.
     This occurs only with IOCP on Windows.
     """
+    Debug.out("* TCPCON _complete_reads()")
     ifdef windows then
       match len.usize()
       | 0 =>
@@ -762,6 +786,7 @@ actor TCPConnection
     """
     Resize the read buffer.
     """
+    Debug.out("* TCPCON _read_buf_size()")
     if _expect != 0 then
       _read_buf.undefined(_expect)
     else
@@ -772,6 +797,7 @@ actor TCPConnection
     """
     Begin an IOCP read on Windows.
     """
+    Debug.out("* TCPCON _queue_read()")
     ifdef windows then
       try
         @pony_os_recv[USize](
@@ -789,6 +815,7 @@ actor TCPConnection
     guessing the next packet length as we go. If we read 4 kb of data, send
     ourself a resume message and stop reading, to avoid starving other actors.
     """
+    Debug.out("* TCPCON _pending_reads()")
     ifdef not windows then
       try
         var sum: USize = 0
@@ -855,6 +882,7 @@ actor TCPConnection
     """
     Inform the notifier that we're connecting.
     """
+    Debug.out("* TCPCON _notify_connecting()")
     if _connect_count > 0 then
       _notify.connecting(this, _connect_count)
     else
@@ -869,6 +897,7 @@ actor TCPConnection
     length read. If the connection is muted, perform a hard close and shut
     down immediately.
     """
+    Debug.out("* TCPCON close()")
     ifdef windows then
       _close()
     else
@@ -880,6 +909,7 @@ actor TCPConnection
     end
 
   fun ref _close() =>
+    Debug.out("* TCPCON _close()")
     _closed = true
     _try_shutdown()
 
@@ -888,6 +918,7 @@ actor TCPConnection
     If we have closed and we have no remaining writes or pending connections,
     then shutdown.
     """
+    Debug.out("* TCPCON _try_shutdown()")
     if not _closed then
       return
     end
@@ -922,6 +953,7 @@ actor TCPConnection
     """
     When an error happens, do a non-graceful close.
     """
+    Debug.out("* TCPCON _hard_close()")
     if not _connected then
       return
     end
@@ -958,10 +990,12 @@ actor TCPConnection
 
   // Check this when a connection gets its first writeable event.
   fun _is_sock_connected(fd: U32): Bool =>
+    Debug.out("* TCPCON _is_sock_connected()")
     (let errno: U32, let value: U32) = _OSSocket.get_so_error(fd)
     (errno == 0) and (value == 0)
 
   fun ref _apply_backpressure() =>
+    Debug.out("* TCPCON _apply_backpressure()")
     if not _throttled then
       _throttled = true
       _notify.throttled(this)
@@ -976,6 +1010,7 @@ actor TCPConnection
     end
 
   fun ref _release_backpressure() =>
+    Debug.out("* TCPCON _release_backpressure()")
     if _throttled then
       _throttled = false
       _notify.unthrottled(this)
@@ -1022,6 +1057,7 @@ actor TCPConnection
       end
     ```
     """
+    Debug.out("* TCPCON getsockopt()")
     _OSSocket.getsockopt(_fd, level, option_name, option_max_size)
 
   fun ref getsockopt_u32(level: I32, option_name: I32): (U32, U32) =>
@@ -1038,6 +1074,7 @@ actor TCPConnection
     1. The value of `errno`.
     2. An undefined value that must be ignored.
     """
+    Debug.out("* TCPCON getsockopt_u32()")
     _OSSocket.getsockopt_u32(_fd, level, option_name)
 
   fun ref setsockopt(level: I32, option_name: I32, option: Array[U8]): U32 =>
@@ -1071,6 +1108,7 @@ actor TCPConnection
       end
     ```
     """
+    Debug.out("* TCPCON setsockopt()")
     _OSSocket.setsockopt(_fd, level, option_name, option)
 
   fun ref setsockopt_u32(level: I32, option_name: I32, option: U32): U32 =>
@@ -1082,6 +1120,7 @@ actor TCPConnection
     This function returns `0` on success, else the value of `errno` on
     failure.
     """
+    Debug.out("* TCPCON setsockopt_u32()")
     _OSSocket.setsockopt_u32(_fd, level, option_name, option)
 
 
@@ -1089,24 +1128,28 @@ actor TCPConnection
     """
     Wrapper for the FFI call `getsockopt(fd, SOL_SOCKET, SO_ERROR, ...)`
     """
+    Debug.out("* TCPCON get_so_error()")
     _OSSocket.get_so_error(_fd)
 
   fun ref get_so_rcvbuf(): (U32, U32) =>
     """
     Wrapper for the FFI call `getsockopt(fd, SOL_SOCKET, SO_RCVBUF, ...)`
     """
+    Debug.out("* TCPCON get_so_rcvbuf()")
     _OSSocket.get_so_rcvbuf(_fd)
 
   fun ref get_so_sndbuf(): (U32, U32) =>
     """
     Wrapper for the FFI call `getsockopt(fd, SOL_SOCKET, SO_SNDBUF, ...)`
     """
+    Debug.out("* TCPCON get_so_sndbuf()")
     _OSSocket.get_so_sndbuf(_fd)
 
   fun ref get_tcp_nodelay(): (U32, U32) =>
     """
     Wrapper for the FFI call `getsockopt(fd, SOL_SOCKET, TCP_NODELAY, ...)`
     """
+    Debug.out("* TCPCON get_tcp_nodelay()")
     _OSSocket.getsockopt_u32(_fd, OSSockOpt.sol_socket(), OSSockOpt.tcp_nodelay())
 
 
@@ -1114,18 +1157,21 @@ actor TCPConnection
     """
     Wrapper for the FFI call `setsockopt(fd, SOL_SOCKET, SO_RCVBUF, ...)`
     """
+    Debug.out("* TCPCON set_so_rcvbuf()")
     _OSSocket.set_so_rcvbuf(_fd, bufsize)
 
   fun ref set_so_sndbuf(bufsize: U32): U32 =>
     """
     Wrapper for the FFI call `setsockopt(fd, SOL_SOCKET, SO_SNDBUF, ...)`
     """
+    Debug.out("* TCPCON set_so_sndbuf()")
     _OSSocket.set_so_sndbuf(_fd, bufsize)
 
   fun ref set_tcp_nodelay(state: Bool): U32 =>
     """
     Wrapper for the FFI call `setsockopt(fd, SOL_SOCKET, TCP_NODELAY, ...)`
     """
+    Debug.out("* TCPCON set_tcp_nodelay()")
     var word: Array[U8] ref =
       _OSSocket.u32_to_bytes4(if state then 1 else 0 end)
     _OSSocket.setsockopt(_fd, OSSockOpt.sol_socket(), OSSockOpt.tcp_nodelay(), word)
